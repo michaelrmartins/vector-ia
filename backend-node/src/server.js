@@ -3,10 +3,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
 const { registrarNoLyceum } = require('./lyceum');
+// const { registrarNoNasajon } = require('./nasajon'); // <-- NASAJON IMPORTADO AQUI!
 const { iniciarSincronismo } = require('./sync');
-
-// Quando você criar o arquivo para bater no Nasajon, basta importar aqui:
-// const { registrarNoNasajon } = require('./nasajon');
 
 const app = express();
 const server = http.createServer(app);
@@ -27,32 +25,50 @@ io.on('connection', (socket) => {
 
             // 1. SUCESSO: A IA cravou que é a pessoa (match: true)
             if (aiResponse.data.match) {
-                // Pegamos todos os dados turbinados que o Python agora devolve
                 const { matricula, nome, tipo, confidence, box } = aiResponse.data;
                 
-                // A. FEEDBACK VISUAL INSTANTÂNEO (Usando o nome local, sem depender do ERP)
+                // Valor padrão caso algum ERP esteja fora do ar (Fallback Seguro)
+                let detalhesExibicao = tipo === 1 ? 'Funcionário' : 'Aluno';
+
+                try {
+                    // BUSCA DE DADOS EM TEMPO REAL NOS ERPS PARA EXIBIR NA TELA
+                    if (tipo === 1) {
+                        console.log(`💼 Sincronizando Funcionário no Nasajon: ${matricula}`);
+                        
+                        // Busca os dados reais do funcionário
+                        const dadosFunc = await registrarNoNasajon(matricula);
+                        
+                        // Pegando o departamento que você comentou!
+                        if (dadosFunc && dadosFunc.departamento) {
+                            detalhesExibicao = dadosFunc.departamento; // Ex: "TI - Infraestrutura"
+                        }
+                        
+                    } else if (tipo === 2) {
+                        console.log(`🎓 Sincronizando Aluno no Lyceum: ${matricula}`);
+                        
+                        // Busca os dados reais do aluno
+                        const dadosAluno = await registrarNoLyceum(matricula);
+                        
+                        // Faz a concatenação do aluno (Ex: Medicina - 3º Período)
+                        if (dadosAluno && dadosAluno.nome_curso && dadosAluno.nome_serie) {
+                            detalhesExibicao = `${dadosAluno.nome_curso} - ${dadosAluno.nome_serie}`;
+                        }
+                    }
+                } catch (erpError) {
+                    // Se o Lyceum ou Nasajon derem Erro, o código avisa no log, 
+                    // mas NÃO trava a tela! Mantém o "detalhesExibicao" como 'Aluno' ou 'Funcionário'.
+                    console.log(`⚠️ Aviso ERP: Não foi possível buscar detalhes de ${matricula} (${erpError.message})`);
+                }
+
+                // EMITE PARA A TELA INSTANTANEAMENTE
                 socket.emit('presenca_confirmada', {
                     nome: nome,
-                    curso: tipo === 1 ? 'Funcionário (Nasajon)' : 'Aluno (Lyceum)', 
+                    curso: detalhesExibicao, // <--- Aqui vai aparecer o Departamento ou o Curso/Período!
                     status: 'Acesso Liberado ✅',
                     box: box,
                     confidence: confidence
                 });
 
-                // B. ROTEAMENTO DE ERP EM BACKGROUND (Não trava o fluxo da tela!)
-                if (tipo === 1) {
-                    console.log(`💼 Funcionário detectado. Sincronizando com Nasajon: ${matricula}`);
-                    
-                    // Quando a função do Nasajon estiver pronta, é só descomentar:
-                    // registrarNoNasajon(matricula)
-                    //     .catch(err => console.log(`Aviso ERP: Falha no Nasajon (${matricula}) - ${err.message}`));
-                        
-                } else if (tipo === 2) {
-                    console.log(`🎓 Aluno detectado. Sincronizando com Lyceum: ${matricula}`);
-                    
-                    registrarNoLyceum(matricula)
-                        .catch(err => console.log(`Aviso ERP: Falha no Lyceum (${matricula}) - ${err.message}`));
-                }
             } 
             // 2. ANALISANDO: Se achou um rosto, mas a confiança não bateu a nota de corte
             else if (aiResponse.data.box) {
@@ -65,14 +81,13 @@ io.on('connection', (socket) => {
     });
 });
 
-// Nova rota para disparar o gatilho do ETL
+// Rota para disparar o gatilho do ETL
 app.post('/api/sincronizar', (req, res) => {
     res.header("Access-Control-Allow-Origin", "*");
     
-    // Dispara a função em background passando a instância do WebSocket (io)
+    // Dispara a função em background
     iniciarSincronismo(io); 
     
-    // Devolve uma resposta rápida para a interface não ficar travada esperando
     res.status(200).json({ message: "Sincronismo iniciado em background!" });
 });
 
