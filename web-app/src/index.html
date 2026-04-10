@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Terminal | AI</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        h1 { color: #00e676; }
+        .container { display: flex; gap: 20px; width: 100%; max-width: 1000px; margin-top: 20px; }
+        .video-panel, .info-panel { background-color: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); flex: 1; }
+        .controls { margin-bottom: 15px; display: flex; flex-direction: column; gap: 5px; }
+        select { padding: 8px; border-radius: 5px; background: #333; color: white; border: 1px solid #555; }
+        video { width: 100%; border-radius: 8px; border: 2px solid #333; background-color: #000; }
+        .status { margin-top: 15px; padding: 15px; border-radius: 8px; background-color: #2c2c2c; font-size: 1.1em; display: none; }
+        .status.success { background-color: #1b5e20; color: #a5d6a7; display: block; border: 1px solid #4caf50; }
+        .log-box { margin-top: 20px; background: #000; padding: 10px; height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.9em; border-radius: 5px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <h1>Attendance Terminal</h1>
+
+    <div class="container">
+        <div class="video-panel">
+            <div class="controls">
+                <label for="cameraSelect">Select Camera:</label>
+                <select id="cameraSelect"></select>
+            </div>
+
+            <div style="position: relative; display: inline-block; width: 100%;">
+                <video id="videoElement" autoplay playsinline style="width: 100%; display: block;"></video>
+                <canvas id="overlayCanvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
+            </div>
+
+            <canvas id="canvasElement" style="display:none;"></canvas>
+        </div>
+
+        <div class="info-panel">
+            <h3>Last Record</h3>
+            <div id="resultadoBox" class="status">
+                Waiting for recognition...
+            </div>
+
+            <h3>System Logs</h3>
+            <div id="logArea" class="log-box">
+                > System started. Loading devices...<br>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io("http://localhost:3000");
+
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvasElement');
+        const ctx = canvas.getContext('2d');
+        const resultadoBox = document.getElementById('resultadoBox');
+        const logArea = document.getElementById('logArea');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const overlayCanvas = document.getElementById('overlayCanvas');
+        const overlayCtx = overlayCanvas.getContext('2d');
+
+        let currentStream;
+        let captureInterval;
+
+        function log(msg) {
+            logArea.innerHTML += `> ${msg}<br>`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        async function getCameras() {
+            try {
+                await navigator.mediaDevices.getUserMedia({ video: true });
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+                cameraSelect.innerHTML = '';
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${index + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+
+                if (videoDevices.length > 0) {
+                    startCamera(videoDevices[0].deviceId);
+                } else {
+                    log("No cameras found.");
+                }
+            } catch (err) {
+                log("Error accessing devices: " + err.message);
+            }
+        }
+
+        async function startCamera(deviceId) {
+            if (currentStream) {
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({
+                    video: { deviceId: { exact: deviceId } }
+                });
+                video.srcObject = currentStream;
+                log("Camera started.");
+
+                if (captureInterval) clearInterval(captureInterval);
+                startCapture();
+            } catch (err) {
+                log("Error starting selected camera: " + err.message);
+            }
+        }
+
+        cameraSelect.addEventListener('change', (e) => {
+            log("Switching video source...");
+            startCamera(e.target.value);
+        });
+
+        function startCapture() {
+            captureInterval = setInterval(() => {
+                if (video.videoWidth === 0) return;
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const frameBase64 = canvas.toDataURL('image/jpeg', 0.8);
+                socket.emit('processar_frame', { image: frameBase64 });
+
+            }, 2000);
+        }
+
+        socket.on('presenca_confirmada', (dados) => {
+            log(`MATCH FOUND! ${dados.nome} (Confidence: ${(dados.confidence * 100).toFixed(1)}%)`);
+
+            resultadoBox.className = "status success";
+            resultadoBox.innerHTML = `
+                <strong>Name:</strong> ${dados.nome} <br>
+                <strong>Course:</strong> ${dados.curso} <br>
+                <strong>Status:</strong> Access Granted
+            `;
+
+            if (dados.box) {
+                overlayCanvas.width = video.videoWidth;
+                overlayCanvas.height = video.videoHeight;
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+                overlayCtx.strokeStyle = "#00FF00";
+                overlayCtx.lineWidth = 4;
+                overlayCtx.fillStyle = "#00FF00";
+                overlayCtx.font = "18px monospace";
+
+                const width = dados.box.right - dados.box.left;
+                const height = dados.box.bottom - dados.box.top;
+
+                overlayCtx.strokeRect(dados.box.left, dados.box.top, width, height);
+                overlayCtx.fillText(`${dados.nome.split(' ')[0]} - ${(dados.confidence * 100).toFixed(0)}%`, dados.box.left, dados.box.top - 10);
+            }
+
+            setTimeout(() => {
+                resultadoBox.className = "status";
+                resultadoBox.innerHTML = "Waiting for recognition...";
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+            }, 3000);
+        });
+
+        getCameras();
+    </script>
+</body>
+</html>

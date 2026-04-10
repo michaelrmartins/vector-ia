@@ -1,0 +1,45 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const axios = require('axios');
+const { registrarNoLyceum } = require('./lyceum');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: { origin: "*" }
+});
+
+app.use(express.json());
+
+io.on('connection', (socket) => {
+    console.log('Capture terminal connected:', socket.id);
+
+    socket.on('processar_frame', async (data) => {
+        try {
+            const aiResponse = await axios.post('http://ai-service:5000/recognize', {
+                image: data.image
+            });
+
+            const { matricula, confidence, box } = aiResponse.data;
+
+            if (matricula && confidence > 0.6) {
+                const dadosAluno = await registrarNoLyceum(matricula);
+
+                socket.emit('presenca_confirmada', {
+                    nome: dadosAluno.nome_compl,
+                    curso: dadosAluno.nome_curso,
+                    status: 'Sucesso',
+                    box: box,
+                    confidence: confidence
+                });
+            }
+        } catch (error) {
+            console.error('Recognition flow error:', error.message);
+        }
+    });
+});
+
+server.listen(3000, () => {
+    console.log('Node.js orchestrator running on port 3000');
+});

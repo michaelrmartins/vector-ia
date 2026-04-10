@@ -1,0 +1,47 @@
+services:
+  db:
+    image: ankane/pgvector:latest
+    container_name: attendance_db
+    restart: always
+    environment:
+      POSTGRES_DB: attendance_system
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db:/docker-entrypoint-initdb.d
+
+  ai-service:
+    build: ./ai-service
+    container_name: attendance_ai
+    restart: always
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://admin:password123@db:5432/attendance_system
+
+  backend-node:
+    build: ./backend-node
+    container_name: attendance_backend
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+      - ai-service
+
+  web-app:
+    build: ./web-app
+    container_name: attendance_frontend
+    restart: always
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend-node
+
+volumes:
+  postgres_data:

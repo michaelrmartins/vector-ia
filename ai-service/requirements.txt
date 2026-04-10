@@ -1,0 +1,5 @@
+face_recognition
+opencv-python-headless
+psycopg2-binary
+pgvector
+flask
