@@ -27,6 +27,12 @@
             <div class="controls">
                 <label for="cameraSelect">Select Camera:</label>
                 <select id="cameraSelect"></select>
+                <div class="controls">
+                <br>
+                <button id="btnSync" style="padding: 10px; background: #00e676; color: #000; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px;">
+                    🔄 Iniciar Sincronismo em Massa
+                </button>
+            </div>  
             </div>
 
             <div style="position: relative; display: inline-block; width: 100%;">
@@ -164,6 +170,32 @@
                 resultadoBox.innerHTML = "Waiting for recognition...";
                 overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
             }, 3000);
+        });
+
+// Gatilho do Botão de Sincronismo
+        document.getElementById('btnSync').addEventListener('click', async () => {
+            if (confirm("Deseja iniciar o sincronismo? O reconhecimento facial será pausado durante o processo.")) {
+                
+                // 🛑 FREIO DE MÃO: Para o bombardeio da câmera na mesma hora!
+                if (captureInterval) {
+                    clearInterval(captureInterval);
+                    log("⏸️ Câmera pausada para focar recursos no sincronismo...");
+                }
+
+                log("===================================");
+                log("🚀 GATILHO DE SINCRONISMO ENVIADO");
+                log("===================================");
+                
+                try {
+                    await fetch('http://localhost:3000/api/sincronizar', { method: 'POST' });
+                } catch (err) {
+                    log(`Erro ao chamar API: ${err.message}`);
+                }
+            }
+        });
+        // Escuta os logs dedicados do sincronismo vindo do backend
+        socket.on('sync_log', (msg) => {
+            log(msg); // Usa a mesma função log() que já imprime na sua telinha preta
         });
 
         getCameras();

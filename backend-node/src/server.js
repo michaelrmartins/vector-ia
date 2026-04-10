@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
 const { registrarNoLyceum } = require('./lyceum');
+const { iniciarSincronismo } = require('./sync');
 
 const app = express();
 const server = http.createServer(app);
@@ -38,6 +39,16 @@ io.on('connection', (socket) => {
             console.error('Recognition flow error:', error.message);
         }
     });
+});
+
+// Nova rota para disparar o gatilho
+app.post('/api/sincronizar', (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    // Dispara a função em background passando a instância do WebSocket (io)
+    iniciarSincronismo(io); 
+    
+    // Devolve uma resposta rápida para a interface não ficar travada esperando
+    res.status(200).json({ message: "Sincronismo iniciado em background!" });
 });
 
 server.listen(3000, () => {

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sincronismo ETL - AI Facial</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+        .admin-panel {
+            background: #1e1e1e;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 900px;
+        }
+        h1 {
+            margin-top: 0;
+            border-bottom: 2px solid #333;
+            padding-bottom: 15px;
+            font-size: 24px;
+        }
+        .info {
+            color: #aaaaaa;
+            margin-bottom: 25px;
+            line-height: 1.6;
+        }
+        #btnSync {
+            background-color: #00e676;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+            margin-bottom: 20px;
+        }
+        #btnSync:hover {
+            background-color: #00c853;
+        }
+        #btnSync:disabled {
+            background-color: #555;
+            color: #888;
+            cursor: not-allowed;
+        }
+        #logArea {
+            background-color: #000000;
+            color: #00ff00; /* Verde Matrix */
+            font-family: 'Courier New', Courier, monospace;
+            padding: 20px;
+            height: 500px;
+            overflow-y: auto;
+            border-radius: 6px;
+            border: 1px solid #333;
+            line-height: 1.5;
+        }
+    </style>
+    <!-- Importa o Socket.io do nosso backend -->
+    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+</head>
+<body>
+
+    <div class="admin-panel">
+        <h1>⚙️ Motor de Sincronismo (ETL)</h1>
+        <div class="info">
+            Este painel executa a carga em lote isolada da captura de câmera, garantindo que o motor de IA dedique 100% dos recursos à vetorização das imagens do Situator.
+        </div>
+
+        <button id="btnSync">🚀 INICIAR SINCRONISMO EM MASSA</button>
+
+        <div id="logArea">
+            > Sistema iniciado. Aguardando comando...<br>
+        </div>
+    </div>
+
+    <script>
+        const socket = io("http://localhost:3000");
+        const logArea = document.getElementById('logArea');
+        const btnSync = document.getElementById('btnSync');
+
+        function log(msg) {
+            logArea.innerHTML += `> ${msg}<br>`;
+            logArea.scrollTop = logArea.scrollHeight; // Auto-scroll para o final
+        }
+
+        btnSync.addEventListener('click', async () => {
+            if (confirm("Deseja iniciar o processo de vetorização em massa?")) {
+                // Bloqueia o botão para não enviar duplamente
+                btnSync.disabled = true;
+                btnSync.innerText = "⏳ Sincronismo em andamento...";
+                
+                log("<br>==================================================");
+                log("🚀 INICIANDO GATILHO DE SINCRONISMO");
+                log("==================================================");
+                
+                try {
+                    await fetch('http://localhost:3000/api/sincronizar', { method: 'POST' });
+                } catch (err) {
+                    log(`❌ Erro ao chamar a API: ${err.message}`);
+                    btnSync.disabled = false;
+                    btnSync.innerText = "🚀 INICIAR SINCRONISMO EM MASSA";
+                }
+            }
+        });
+
+        // Escuta os logs em tempo real
+        socket.on('sync_log', (msg) => {
+            log(msg);
+            
+            // Libera o botão novamente se o processo terminar ou der erro fatal
+            if (msg.includes('Sincronismo concluído') || msg.includes('Erro fatal no sincronismo')) {
+                btnSync.disabled = false;
+                btnSync.innerText = "🚀 INICIAR SINCRONISMO EM MASSA";
+            }
+        });
+    </script>
+
+</body>
+</html>
