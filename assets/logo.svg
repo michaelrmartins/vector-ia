@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="eyeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00e676;stop-opacity:1">
+        <animate attributeName="stop-color" values="#00e676;#00bcd4;#e040fb;#00e676" dur="4s" repeatCount="indefinite"/>
+      </stop>
+      <stop offset="100%" style="stop-color:#00bcd4;stop-opacity:1">
+        <animate attributeName="stop-color" values="#00bcd4;#e040fb;#00e676;#00bcd4" dur="4s" repeatCount="indefinite"/>
+      </stop>
+    </linearGradient>
+    <linearGradient id="irisGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00e676;stop-opacity:1"/>
+      <stop offset="100%" style="stop-color:#00bcd4;stop-opacity:1"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="60" cy="60" r="56" fill="#0d1117" stroke="url(#eyeGrad)" stroke-width="2"/>
+
+  <!-- Eye shape (almond) -->
+  <g filter="url(#glow)">
+    <path d="M20 60 Q60 25 100 60 Q60 95 20 60 Z" fill="none" stroke="url(#eyeGrad)" stroke-width="2.5" stroke-linecap="round">
+      <animate attributeName="d" values="M20 60 Q60 25 100 60 Q60 95 20 60 Z;M20 60 Q60 45 100 60 Q60 75 20 60 Z;M20 60 Q60 25 100 60 Q60 95 20 60 Z" dur="3s" repeatCount="indefinite"/>
+    </path>
+  </g>
+
+  <!-- Outer iris -->
+  <circle cx="60" cy="60" r="16" fill="none" stroke="url(#irisGrad)" stroke-width="2" opacity="0.7">
+    <animate attributeName="r" values="16;14;16" dur="3s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Inner iris -->
+  <circle cx="60" cy="60" r="11" fill="url(#irisGrad)" opacity="0.3">
+    <animate attributeName="r" values="11;9;11" dur="3s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Pupil -->
+  <circle cx="60" cy="60" r="6" fill="url(#eyeGrad)">
+    <animate attributeName="r" values="6;4;6" dur="3s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Pupil highlight -->
+  <circle cx="57" cy="57" r="2" fill="white" opacity="0.8">
+    <animate attributeName="opacity" values="0.8;0.4;0.8" dur="2s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Scanning line effect -->
+  <line x1="25" y1="60" x2="95" y2="60" stroke="#00e676" stroke-width="0.5" opacity="0.4">
+    <animate attributeName="y1" values="45;75;45" dur="2s" repeatCount="indefinite"/>
+    <animate attributeName="y2" values="45;75;45" dur="2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.4;0.1;0.4" dur="2s" repeatCount="indefinite"/>
+  </line>
+
+  <!-- Corner brackets (face detection style) -->
+  <g stroke="#00e676" stroke-width="1.5" fill="none" opacity="0.6">
+    <!-- Top-left -->
+    <path d="M30 40 L30 35 L35 35"/>
+    <!-- Top-right -->
+    <path d="M90 40 L90 35 L85 35"/>
+    <!-- Bottom-left -->
+    <path d="M30 80 L30 85 L35 85"/>
+    <!-- Bottom-right -->
+    <path d="M90 80 L90 85 L85 85"/>
+    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite"/>
+  </g>
+</svg>
