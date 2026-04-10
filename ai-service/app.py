@@ -37,7 +37,7 @@ def recognize():
             return jsonify({"error": "No face detected in the image"}), 404
 
         top, right, bottom, left = face_locations[0]
-        bounding_box = {"top": top, "right": right, "bottom": bottom, "left": left}
+        box = {"top": top, "right": right, "bottom": bottom, "left": left}
 
         # Step 2: Extract face embedding
         face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
@@ -46,14 +46,16 @@ def recognize():
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # Query buscando as 4 colunas
         query = """
-            SELECT matricula, (1 - (foto_embedding <=> %s::vector)) as confidence
+            SELECT matricula, nome, tipo, (1 - (foto_embedding <=> %s::vector)) as confidence
             FROM alunos
             ORDER BY foto_embedding <=> %s::vector
             LIMIT 1;
         """
 
         embedding_str = '[' + ','.join(map(str, embedding)) + ']'
+        
         cur.execute(query, (embedding_str, embedding_str))
         result = cur.fetchone()
 
@@ -61,25 +63,45 @@ def recognize():
         conn.close()
 
         if result:
-            matricula, confidence = result
-            return jsonify({
-                "matricula": matricula,
-                "confidence": float(confidence),
-                "box": bounding_box
-            }), 200
+            # Lendo as 4 colunas na ordem correta do SELECT!
+            matricula = result[0]
+            nome_banco = result[1]
+            tipo = result[2]
+            confidence = float(result[3])
+            
+            # DEBUG NO LOG (Agora mostra o nome e o tipo também)
+            print(f"DEBUG BIOMETRIA -> {matricula} ({nome_banco}) | Tipo: {tipo} | Confiança: {confidence:.4f}", flush=True)
+
+            if confidence >= 0.945:
+                return jsonify({
+                    "match": True,
+                    "matricula": matricula,
+                    "nome": nome_banco,
+                    "tipo": tipo, # Enviando o tipo de volta para o Node
+                    "confidence": confidence,
+                    "box": box
+                }), 200
+            else:
+                return jsonify({
+                    "match": False,
+                    "message": "Confiança muito baixa",
+                    "box": box
+                }), 200
         else:
-            return jsonify({"error": "Database is empty"}), 404
+            return jsonify({"match": False, "message": "Banco vazio", "box": box}), 200
 
     except Exception as e:
         print("Internal error:", str(e))
         return jsonify({"error": str(e)}), 500
 
+
 @app.route('/cadastrar', methods=['POST'])
 def cadastrar():
     data = request.json
 
-    if not data or 'image' not in data or 'matricula' not in data or 'nome' not in data:
-        return jsonify({"error": "Missing data. Send image, matricula, and nome."}), 400
+    # Adicionado a exigência do campo 'tipo' aqui
+    if not data or 'image' not in data or 'matricula' not in data or 'nome' not in data or 'tipo' not in data:
+        return jsonify({"error": "Missing data. Send image, matricula, nome, and tipo."}), 400
 
     try:
         image_b64 = data['image']
@@ -106,16 +128,16 @@ def cadastrar():
 
         embedding_str = '[' + ','.join(map(str, embedding)) + ']'
 
-        # Upsert: update the face embedding if the student already exists
         query = """
-            INSERT INTO alunos (matricula, nome, foto_embedding)
-            VALUES (%s, %s, %s::vector)
+            INSERT INTO alunos (matricula, nome, tipo, foto_embedding)
+            VALUES (%s, %s, %s, %s::vector)
             ON CONFLICT (matricula) DO UPDATE
             SET foto_embedding = EXCLUDED.foto_embedding,
-                nome = EXCLUDED.nome;
+                nome = EXCLUDED.nome,
+                tipo = EXCLUDED.tipo;
         """
 
-        cur.execute(query, (data['matricula'], data['nome'], embedding_str))
+        cur.execute(query, (data['matricula'], data['nome'], data['tipo'], embedding_str))
         conn.commit()
 
         cur.close()

@@ -30,7 +30,7 @@ try {
         const pessoasAtivas = response.data.filter(pessoa => pessoa.Active === true);
         
         // Limita a 5 para o teste (pegando apenas os ativos)
-        const pessoas = pessoasAtivas.slice(0, 5); 
+        const pessoas = pessoasAtivas
         emitLog(`Total de ativos no Situator: ${pessoasAtivas.length}. Processando: ${pessoas.length} neste teste.`);
 
         let sucesso = 0;
@@ -71,6 +71,7 @@ try {
                 await axios.post(AI_SERVICE, {
                     matricula: dadosExtras.matricula,
                     nome: dadosExtras.nome,
+                    tipo: pessoa.PersonType,
                     image: base64Img
                 });
 

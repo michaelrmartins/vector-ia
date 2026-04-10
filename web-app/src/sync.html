@@ -89,9 +89,22 @@
         const logArea = document.getElementById('logArea');
         const btnSync = document.getElementById('btnSync');
 
-        function log(msg) {
-            logArea.innerHTML += `> ${msg}<br>`;
-            logArea.scrollTop = logArea.scrollHeight; // Auto-scroll para o final
+        const MAX_LOGS = 20;
+function log(msg) {
+            // 1. Cria um elemento novo apenas para esta linha, em vez de recriar o texto todo
+            const newLine = document.createElement('div');
+            newLine.innerHTML = `> ${msg}`;
+            newLine.style.marginBottom = "4px"; // Dá um espacinho visual entre as linhas
+            
+            logArea.appendChild(newLine);
+
+            // 2. RING BUFFER: Se passar de 200 linhas, remove a mais antiga do topo
+            while (logArea.children.length > MAX_LOGS) {
+                logArea.removeChild(logArea.firstChild);
+            }
+
+            // 3. Mantém o scroll preso no final
+            logArea.scrollTop = logArea.scrollHeight;
         }
 
         btnSync.addEventListener('click', async () => {

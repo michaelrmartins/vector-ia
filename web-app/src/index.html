@@ -29,9 +29,9 @@
                 <select id="cameraSelect"></select>
                 <div class="controls">
                 <br>
-                <button id="btnSync" style="padding: 10px; background: #00e676; color: #000; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px;">
-                    🔄 Iniciar Sincronismo em Massa
-                </button>
+                <!-- <button id="btnSync" style="padding: 10px; background: #00e676; color: #000; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px;">
+                    Iniciar Sincronismo em Massa
+                </button> -->
             </div>  
             </div>
 
@@ -138,6 +138,9 @@
             }, 2000);
         }
 
+        // ==========================================
+        // 1. SUCESSO: Rosto reconhecido com alta confiança
+        // ==========================================
         socket.on('presenca_confirmada', (dados) => {
             log(`MATCH FOUND! ${dados.nome} (Confidence: ${(dados.confidence * 100).toFixed(1)}%)`);
 
@@ -156,7 +159,7 @@
                 overlayCtx.strokeStyle = "#00FF00";
                 overlayCtx.lineWidth = 4;
                 overlayCtx.fillStyle = "#00FF00";
-                overlayCtx.font = "18px monospace";
+                overlayCtx.font = "bold 18px monospace";
 
                 const width = dados.box.right - dados.box.left;
                 const height = dados.box.bottom - dados.box.top;
@@ -172,30 +175,29 @@
             }, 3000);
         });
 
-// Gatilho do Botão de Sincronismo
-        document.getElementById('btnSync').addEventListener('click', async () => {
-            if (confirm("Deseja iniciar o sincronismo? O reconhecimento facial será pausado durante o processo.")) {
+        // ==========================================
+        // 2. ANALISANDO: Rosto detectado, mas não reconhecido ou com baixa confiança
+        // ==========================================
+        socket.on('rosto_detectado', (dados) => {
+            const box = dados.box;
+            if (box) {
+                overlayCanvas.width = video.videoWidth;
+                overlayCanvas.height = video.videoHeight;
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
                 
-                // 🛑 FREIO DE MÃO: Para o bombardeio da câmera na mesma hora!
-                if (captureInterval) {
-                    clearInterval(captureInterval);
-                    log("⏸️ Câmera pausada para focar recursos no sincronismo...");
-                }
-
-                log("===================================");
-                log("🚀 GATILHO DE SINCRONISMO ENVIADO");
-                log("===================================");
+                // Desenha o quadrado verde vazado
+                overlayCtx.strokeStyle = "#00FF00";
+                overlayCtx.lineWidth = 3;
+                const width = box.right - box.left;
+                const height = box.bottom - box.top;
                 
-                try {
-                    await fetch('http://localhost:3000/api/sincronizar', { method: 'POST' });
-                } catch (err) {
-                    log(`Erro ao chamar API: ${err.message}`);
-                }
+                overlayCtx.strokeRect(box.left, box.top, width, height);
+                
+                // Adiciona o texto abaixo do rosto
+                overlayCtx.fillStyle = "#00FF00";
+                overlayCtx.font = "bold 16px monospace";
+                overlayCtx.fillText("Analisando biometria...", box.left, box.bottom + 20);
             }
-        });
-        // Escuta os logs dedicados do sincronismo vindo do backend
-        socket.on('sync_log', (msg) => {
-            log(msg); // Usa a mesma função log() que já imprime na sua telinha preta
         });
 
         getCameras();
