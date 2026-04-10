@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" width="120" alt="Vector-IA Logo"/>
+  <img src="assets/logo.svg" width="320" alt="Vector-IA Logo"/>
 </p>
 
 <h1 align="center">VECTOR-IA - Computer Vision Processing</h1>
