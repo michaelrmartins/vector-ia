@@ -2,7 +2,7 @@
   <img src="assets/logo.svg" width="320" alt="Vector-IA Logo"/>
 </p>
 
-<h1 align="center">VECTOR-IA - Computer Vision Processing</h1>
+<h1 align="center">VECTOR-IA - Computer Vision Image Processing</h1>
 <p align="center"><i>Facial Recognition Attendance System</i></p>
 
 <p align="center">
