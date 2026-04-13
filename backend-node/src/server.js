@@ -3,6 +3,8 @@ const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
 const { iniciarSincronismo } = require('./sync');
+const { registrarNoLyceum } = require('./lyceum');
+const { registrarNoNasajon } = require('./nasajon');
 
 const app = express();
 const server = http.createServer(app);
@@ -60,6 +62,30 @@ io.on('connection', (socket) => {
             console.error('Erro no fluxo de reconhecimento (socket):', error.message);
         }
     });
+});
+
+// ==========================================
+// ERP Proxy route
+// ==========================================
+app.get('/api/proxy/:erp/:documento', async (req, res) => {
+    const { erp, documento } = req.params;
+
+    try {
+        if (erp === 'nasajon') {
+            const data = await registrarNoNasajon(documento);
+            return res.status(200).json(data);
+        }
+
+        if (erp === 'lyceum') {
+            const data = await registrarNoLyceum(documento);
+            return res.status(200).json(data);
+        }
+
+        return res.status(400).json({ error: `ERP desconhecido: ${erp}` });
+    } catch (err) {
+        console.error(`[proxy] ${erp}/${documento} error:`, err.message);
+        return res.status(500).json({ error: err.message });
+    }
 });
 
 // ==========================================

@@ -16,10 +16,19 @@ DB_URL = os.environ.get("DATABASE_URL", "postgresql://admin:password123@db:5432/
 RTSP_URL = os.environ.get("RTSP_URL", "rtsp://localhost:8554/camera")
 WEBHOOK_URL = "http://attendance_backend:3000/api/webhook/rosto_detectado"
 
+# ==========================================
+# O GUARDA-COSTAS DO CORS (Força Bruta)
+# Injeta a permissão em absolutamente todas as respostas
+# ==========================================
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS')
+    return response
 
 def get_db_connection():
     return psycopg2.connect(DB_URL)
-
 
 def _open_capture(url):
     """Open VideoCapture while suppressing FFmpeg's C-level stderr noise."""
@@ -33,7 +42,6 @@ def _open_capture(url):
         os.close(saved_stderr)
         os.close(devnull_fd)
     return cap
-
 
 # ==========================================
 # Background RTSP worker (Server Push architecture)
@@ -126,12 +134,15 @@ def rtsp_worker():
                 cap = None
             time.sleep(2)
 
-
 # ==========================================
 # /recognize  (tablet / manual frame fallback)
 # ==========================================
-@app.route('/recognize', methods=['POST'])
+@app.route('/recognize', methods=['POST', 'OPTIONS'])
 def recognize():
+    # Atalho para o navegador (Preflight)
+    if request.method == 'OPTIONS':
+        return '', 200
+
     data = request.json
 
     if not data or 'image' not in data:
@@ -150,7 +161,7 @@ def recognize():
         face_locations = face_recognition.face_locations(rgb_img)
 
         if len(face_locations) == 0:
-            return jsonify({"error": "No face detected in the image"}), 404
+            return jsonify({"match": False, "message": "No face detected in the image"}), 200
 
         top, right, bottom, left = face_locations[0]
         box = {"top": top, "right": right, "bottom": bottom, "left": left}
@@ -174,7 +185,6 @@ def recognize():
         conn.close()
 
         if result:
-            # SELECT returns: nome, tipo, documento, confidence  (4 columns)
             nome_banco, tipo, documento, confidence = (
                 result[0], result[1], result[2], float(result[3])
             )
@@ -198,12 +208,14 @@ def recognize():
         print("Internal error:", str(e))
         return jsonify({"error": str(e)}), 500
 
-
 # ==========================================
 # /cadastrar  (ETL sync + manual enrollment)
 # ==========================================
-@app.route('/cadastrar', methods=['POST'])
+@app.route('/cadastrar', methods=['POST', 'OPTIONS'])
 def cadastrar():
+    if request.method == 'OPTIONS':
+        return '', 200
+
     data = request.json
 
     if not data or 'image' not in data or 'documento' not in data or 'nome' not in data or 'tipo' not in data:
@@ -252,12 +264,14 @@ def cadastrar():
         print("Registration error:", str(e))
         return jsonify({"error": str(e)}), 500
 
-
 # ==========================================
 # Sync management endpoints
 # ==========================================
-@app.route('/users', methods=['GET'])
+@app.route('/users', methods=['GET', 'OPTIONS'])
 def list_users():
+    if request.method == 'OPTIONS':
+        return '', 200
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -269,9 +283,11 @@ def list_users():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-@app.route('/users/<matricula>', methods=['DELETE'])
+@app.route('/users/<matricula>', methods=['DELETE', 'OPTIONS'])
 def delete_user(matricula):
+    if request.method == 'OPTIONS':
+        return '', 200
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -283,9 +299,11 @@ def delete_user(matricula):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-@app.route('/database/wipe', methods=['DELETE'])
+@app.route('/database/wipe', methods=['DELETE', 'OPTIONS'])
 def wipe_database():
+    if request.method == 'OPTIONS':
+        return '', 200
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -296,7 +314,6 @@ def wipe_database():
         return jsonify({"message": "Database wiped successfully."}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == '__main__':
     worker_thread = threading.Thread(target=rtsp_worker, daemon=True)
