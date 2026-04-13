@@ -2,8 +2,6 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const axios = require('axios');
-const { registrarNoLyceum } = require('./lyceum');
-// const { registrarNoNasajon } = require('./nasajon'); // <-- NASAJON IMPORTADO AQUI!
 const { iniciarSincronismo } = require('./sync');
 
 const app = express();
@@ -14,6 +12,34 @@ const io = new Server(server, {
 
 app.use(express.json());
 
+// ==========================================
+// Webhook: Python AI service -> Node.js (Server Push)
+// Receives identity data and broadcasts to all frontends immediately.
+// NO ERP logic here — pure identity relay.
+// ==========================================
+app.post('/api/webhook/rosto_detectado', (req, res) => {
+    const { nome, tipo, documento, confidence, box, frame_width, frame_height } = req.body;
+
+    if (!nome || !documento) {
+        return res.status(400).json({ error: 'Payload inválido. Esperado: nome, documento.' });
+    }
+
+    io.emit('presenca_confirmada', {
+        nome,
+        tipo,
+        documento,
+        confidence,
+        box,
+        frame_width,
+        frame_height
+    });
+
+    res.status(200).json({ message: 'Presença emitida com sucesso.' });
+});
+
+// ==========================================
+// Socket fallback: manual frame from tablet/terminal (stateless)
+// ==========================================
 io.on('connection', (socket) => {
     console.log('Capture terminal connected:', socket.id);
 
@@ -23,72 +49,37 @@ io.on('connection', (socket) => {
                 image: data.image
             });
 
-            // 1. SUCESSO: A IA cravou que é a pessoa (match: true)
             if (aiResponse.data.match) {
-                const { matricula, nome, tipo, confidence, box } = aiResponse.data;
-                
-                // Valor padrão caso algum ERP esteja fora do ar (Fallback Seguro)
-                let detalhesExibicao = tipo === 1 ? 'Funcionário' : 'Aluno';
-
-                try {
-                    // BUSCA DE DADOS EM TEMPO REAL NOS ERPS PARA EXIBIR NA TELA
-                    if (tipo === 1) {
-                        console.log(`💼 Sincronizando Funcionário no Nasajon: ${matricula}`);
-                        
-                        // Busca os dados reais do funcionário
-                        const dadosFunc = await registrarNoNasajon(matricula);
-                        
-                        // Pegando o departamento que você comentou!
-                        if (dadosFunc && dadosFunc.departamento) {
-                            detalhesExibicao = dadosFunc.departamento; // Ex: "TI - Infraestrutura"
-                        }
-                        
-                    } else if (tipo === 2) {
-                        console.log(`🎓 Sincronizando Aluno no Lyceum: ${matricula}`);
-                        
-                        // Busca os dados reais do aluno
-                        const dadosAluno = await registrarNoLyceum(matricula);
-                        
-                        // Faz a concatenação do aluno (Ex: Medicina - 3º Período)
-                        if (dadosAluno && dadosAluno.nome_curso && dadosAluno.nome_serie) {
-                            detalhesExibicao = `${dadosAluno.nome_curso} - ${dadosAluno.nome_serie}`;
-                        }
-                    }
-                } catch (erpError) {
-                    // Se o Lyceum ou Nasajon derem Erro, o código avisa no log, 
-                    // mas NÃO trava a tela! Mantém o "detalhesExibicao" como 'Aluno' ou 'Funcionário'.
-                    console.log(`⚠️ Aviso ERP: Não foi possível buscar detalhes de ${matricula} (${erpError.message})`);
-                }
-
-                // EMITE PARA A TELA INSTANTANEAMENTE
-                socket.emit('presenca_confirmada', {
-                    nome: nome,
-                    curso: detalhesExibicao, // <--- Aqui vai aparecer o Departamento ou o Curso/Período!
-                    status: 'Acesso Liberado ✅',
-                    box: box,
-                    confidence: confidence
-                });
-
-            } 
-            // 2. ANALISANDO: Se achou um rosto, mas a confiança não bateu a nota de corte
-            else if (aiResponse.data.box) {
-                socket.emit('rosto_detectado', { box: aiResponse.data.box });
+                const { nome, tipo, documento, confidence, box } = aiResponse.data;
+                io.emit('presenca_confirmada', { nome, tipo, documento, confidence, box });
+            } else if (aiResponse.data.box) {
+                io.emit('rosto_detectado', { box: aiResponse.data.box });
             }
-
         } catch (error) {
-            console.error("Erro no fluxo de reconhecimento:", error.message);
+            console.error('Erro no fluxo de reconhecimento (socket):', error.message);
         }
     });
 });
 
-// Rota para disparar o gatilho do ETL
+// ==========================================
+// ETL Sync routes
+// ==========================================
 app.post('/api/sincronizar', (req, res) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    
-    // Dispara a função em background
-    iniciarSincronismo(io); 
-    
-    res.status(200).json({ message: "Sincronismo iniciado em background!" });
+    const mode = (req.body && req.body.mode) || 'full';
+    iniciarSincronismo(io, mode);
+    res.status(200).json({ message: `Sincronismo (${mode}) iniciado em background!` });
+});
+
+app.post('/api/limpar-base', async (req, res) => {
+    try {
+        await axios.delete('http://ai-service:5000/database/wipe');
+        io.emit('sync_log', '🗑️ Base de dados limpa com sucesso.');
+        res.status(200).json({ message: 'Base limpa com sucesso.' });
+    } catch (error) {
+        const msg = `❌ Erro ao limpar base: ${error.message}`;
+        io.emit('sync_log', msg);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 server.listen(3000, () => {

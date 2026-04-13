@@ -33,30 +33,48 @@
             margin-bottom: 25px;
             line-height: 1.6;
         }
-        #btnSync {
-            background-color: #00e676;
-            color: #000;
-            border: none;
-            padding: 15px 30px;
-            font-size: 16px;
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            flex: 1;
+            min-width: 180px;
+            padding: 15px 20px;
+            font-size: 15px;
             font-weight: bold;
+            border: none;
             border-radius: 6px;
             cursor: pointer;
-            width: 100%;
-            transition: background 0.3s;
-            margin-bottom: 20px;
+            transition: background 0.2s, opacity 0.2s;
         }
-        #btnSync:hover {
-            background-color: #00c853;
-        }
-        #btnSync:disabled {
-            background-color: #555;
-            color: #888;
+        .btn:disabled {
+            opacity: 0.4;
             cursor: not-allowed;
         }
+        #btnDelta {
+            background-color: #00e676;
+            color: #000;
+        }
+        #btnDelta:hover:not(:disabled) { background-color: #00c853; }
+
+        #btnFull {
+            background-color: #2979ff;
+            color: #fff;
+        }
+        #btnFull:hover:not(:disabled) { background-color: #1565c0; }
+
+        #btnWipe {
+            background-color: #d32f2f;
+            color: #fff;
+        }
+        #btnWipe:hover:not(:disabled) { background-color: #b71c1c; }
+
         #logArea {
             background-color: #000000;
-            color: #00ff00; /* Verde Matrix */
+            color: #00ff00;
             font-family: 'Courier New', Courier, monospace;
             padding: 20px;
             height: 500px;
@@ -66,7 +84,6 @@
             line-height: 1.5;
         }
     </style>
-    <!-- Importa o Socket.io do nosso backend -->
     <script src="http://localhost:3000/socket.io/socket.io.js"></script>
 </head>
 <body>
@@ -74,10 +91,14 @@
     <div class="admin-panel">
         <h1>⚙️ Motor de Sincronismo (ETL)</h1>
         <div class="info">
-            Este painel executa a carga em lote isolada da captura de câmera, garantindo que o motor de IA dedique 100% dos recursos à vetorização das imagens do Situator.
+            Painel de administração da base de vetores biométricos. Use o <strong>Smart Sync</strong> para operações rápidas do dia a dia. Use o <strong>Force Full Sync</strong> para reconstruir toda a base. O <strong>Wipe</strong> é irreversível.
         </div>
 
-        <button id="btnSync">🚀 INICIAR SINCRONISMO EM MASSA</button>
+        <div class="btn-group">
+            <button id="btnDelta" class="btn">⚡ Smart Sync (Delta)</button>
+            <button id="btnFull"  class="btn">🔄 Force Full Sync</button>
+            <button id="btnWipe"  class="btn">🗑️ Wipe Database</button>
+        </div>
 
         <div id="logArea">
             > Sistema iniciado. Aguardando comando...<br>
@@ -86,55 +107,92 @@
 
     <script>
         const socket = io("http://localhost:3000");
-        const logArea = document.getElementById('logArea');
-        const btnSync = document.getElementById('btnSync');
+        const logArea  = document.getElementById('logArea');
+        const btnDelta = document.getElementById('btnDelta');
+        const btnFull  = document.getElementById('btnFull');
+        const btnWipe  = document.getElementById('btnWipe');
 
-        const MAX_LOGS = 20;
-function log(msg) {
-            // 1. Cria um elemento novo apenas para esta linha, em vez de recriar o texto todo
-            const newLine = document.createElement('div');
-            newLine.innerHTML = `> ${msg}`;
-            newLine.style.marginBottom = "4px"; // Dá um espacinho visual entre as linhas
-            
-            logArea.appendChild(newLine);
+        const MAX_LOGS = 200;
 
-            // 2. RING BUFFER: Se passar de 200 linhas, remove a mais antiga do topo
+        function log(msg) {
+            const line = document.createElement('div');
+            line.textContent = `> ${msg}`;
+            line.style.marginBottom = "3px";
+            logArea.appendChild(line);
+
+            // Ring buffer: discard oldest entries beyond MAX_LOGS
             while (logArea.children.length > MAX_LOGS) {
                 logArea.removeChild(logArea.firstChild);
             }
 
-            // 3. Mantém o scroll preso no final
             logArea.scrollTop = logArea.scrollHeight;
         }
 
-        btnSync.addEventListener('click', async () => {
-            if (confirm("Deseja iniciar o processo de vetorização em massa?")) {
-                // Bloqueia o botão para não enviar duplamente
-                btnSync.disabled = true;
-                btnSync.innerText = "⏳ Sincronismo em andamento...";
-                
-                log("<br>==================================================");
-                log("🚀 INICIANDO GATILHO DE SINCRONISMO");
-                log("==================================================");
-                
-                try {
-                    await fetch('http://localhost:3000/api/sincronizar', { method: 'POST' });
-                } catch (err) {
-                    log(`❌ Erro ao chamar a API: ${err.message}`);
-                    btnSync.disabled = false;
-                    btnSync.innerText = "🚀 INICIAR SINCRONISMO EM MASSA";
-                }
+        function setAllDisabled(disabled) {
+            btnDelta.disabled = disabled;
+            btnFull.disabled  = disabled;
+            btnWipe.disabled  = disabled;
+        }
+
+        async function triggerSync(mode) {
+            setAllDisabled(true);
+            log(`==================================================`);
+            log(`🚀 INICIANDO SINCRONISMO (${mode.toUpperCase()})`);
+            log(`==================================================`);
+
+            try {
+                await fetch('http://localhost:3000/api/sincronizar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode })
+                });
+            } catch (err) {
+                log(`❌ Erro ao chamar a API: ${err.message}`);
+                setAllDisabled(false);
+            }
+            // Buttons re-enable via sync_log listener when process completes
+        }
+
+        btnDelta.addEventListener('click', () => {
+            if (confirm("Iniciar Smart Sync (Delta)? Apenas diferenças serão processadas.")) {
+                triggerSync('delta');
             }
         });
 
-        // Escuta os logs em tempo real
+        btnFull.addEventListener('click', () => {
+            if (confirm("Iniciar Full Sync? Toda a base será reprocessada. Isso pode demorar bastante.")) {
+                triggerSync('full');
+            }
+        });
+
+        btnWipe.addEventListener('click', async () => {
+            if (!confirm("⚠️ ATENÇÃO: Isso vai apagar TODOS os vetores biométricos do banco.\n\nEsta ação é irreversível. Deseja continuar?")) {
+                return;
+            }
+            setAllDisabled(true);
+            log("🗑️ Enviando comando de limpeza total...");
+
+            try {
+                const res = await fetch('http://localhost:3000/api/limpar-base', { method: 'POST' });
+                const json = await res.json();
+                log(res.ok ? `✅ ${json.message}` : `❌ ${json.error}`);
+            } catch (err) {
+                log(`❌ Erro ao limpar base: ${err.message}`);
+            } finally {
+                setAllDisabled(false);
+            }
+        });
+
+        // Real-time log stream from backend
         socket.on('sync_log', (msg) => {
             log(msg);
-            
-            // Libera o botão novamente se o processo terminar ou der erro fatal
-            if (msg.includes('Sincronismo concluído') || msg.includes('Erro fatal no sincronismo')) {
-                btnSync.disabled = false;
-                btnSync.innerText = "🚀 INICIAR SINCRONISMO EM MASSA";
+
+            // Re-enable buttons when a sync operation finishes
+            if (
+                msg.includes('concluído') ||
+                msg.includes('Erro fatal no sincronismo')
+            ) {
+                setAllDisabled(false);
             }
         });
     </script>
