@@ -10,6 +10,7 @@ const io = new Server(server, {
     cors: { origin: "*" }
 });
 
+app.use(require('cors')());
 app.use(express.json());
 
 // ==========================================

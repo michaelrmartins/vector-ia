@@ -134,23 +134,21 @@
             btnWipe.disabled  = disabled;
         }
 
-        async function triggerSync(mode) {
+        function triggerSync(mode) {
             setAllDisabled(true);
             log(`==================================================`);
             log(`🚀 INICIANDO SINCRONISMO (${mode.toUpperCase()})`);
             log(`==================================================`);
 
-            try {
-                await fetch('http://localhost:3000/api/sincronizar', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ mode })
-                });
-            } catch (err) {
+            // Fire-and-forget: response is instant, progress arrives via socket sync_log events
+            fetch('http://localhost:3000/api/sincronizar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode })
+            }).catch(err => {
                 log(`❌ Erro ao chamar a API: ${err.message}`);
                 setAllDisabled(false);
-            }
-            // Buttons re-enable via sync_log listener when process completes
+            });
         }
 
         btnDelta.addEventListener('click', () => {
