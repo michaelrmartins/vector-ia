@@ -1,8 +1,8 @@
 const axios = require('axios');
 
-const NASAJON_URL  = process.env.NASAJON_URL  || 'http://192.168.55.9:8082';
-const NASAJON_USER = process.env.NASAJON_USER || 'admin';
-const NASAJON_PASS = process.env.NASAJON_PASS || 'fth67jil';
+const NASAJON_URL  = process.env.NASAJON_URL;
+const NASAJON_USER = process.env.NASAJON_USER;
+const NASAJON_PASS = process.env.NASAJON_PASS;
 
 const authHeader = 'Basic ' + Buffer.from(`${NASAJON_USER}:${NASAJON_PASS}`).toString('base64');
 
