@@ -13,6 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Force the use of CPU-only Dlib    
+ENV CMAKE_ARGS="-DDLIB_USE_CUDA=0 -DDLIB_USE_AVX_INSTRUCTIONS=0 -DDLIB_USE_SSE4_INSTRUCTIONS=0"
+
 COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
