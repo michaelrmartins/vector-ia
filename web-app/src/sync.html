@@ -84,7 +84,7 @@
             line-height: 1.5;
         }
     </style>
-    <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+    <script src="http://192.168.50.157:3000/socket.io/socket.io.js"></script>
 </head>
 <body>
 
@@ -106,7 +106,7 @@
     </div>
 
     <script>
-        const socket = io("http://localhost:3000");
+        const socket = io("http://192.168.50.157:3000");
         const logArea  = document.getElementById('logArea');
         const btnDelta = document.getElementById('btnDelta');
         const btnFull  = document.getElementById('btnFull');
@@ -141,7 +141,7 @@
             log(`==================================================`);
 
             // Fire-and-forget: response is instant, progress arrives via socket sync_log events
-            fetch('http://localhost:3000/api/sincronizar', {
+            fetch('http://192.168.50.157:3000/api/sincronizar', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mode })
@@ -171,7 +171,7 @@
             log("🗑️ Enviando comando de limpeza total...");
 
             try {
-                const res = await fetch('http://localhost:3000/api/limpar-base', { method: 'POST' });
+                const res = await fetch('http://192.168.50.157:3000/api/limpar-base', { method: 'POST' });
                 const json = await res.json();
                 log(res.ok ? `✅ ${json.message}` : `❌ ${json.error}`);
             } catch (err) {
