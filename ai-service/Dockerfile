@@ -23,9 +23,9 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenblas0 \
     libgl1 \
-    libpng16-16 \
+    libpng16-16t64 \
     libjpeg62-turbo \
-    libtiff5 \
+    libtiff6 \
     libwebp7 \
     && rm -rf /var/lib/apt/lists/*
 
