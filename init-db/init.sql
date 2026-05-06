@@ -1,15 +1,16 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
-CREATE TABLE alunos (
+CREATE TABLE pessoas (
     id SERIAL PRIMARY KEY,
-    matricula VARCHAR(20) UNIQUE NOT NULL,
+    documento VARCHAR(20) UNIQUE NOT NULL,
     nome VARCHAR(100) NOT NULL,
+    tipo INTEGER NOT NULL,
     foto_embedding vector(128)
 );
 
 CREATE TABLE presencas (
     id SERIAL PRIMARY KEY,
-    aluno_id INTEGER REFERENCES alunos(id),
+    pessoa_id INTEGER REFERENCES pessoas(id),
     data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     camera_id VARCHAR(50)
 );
